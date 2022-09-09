@@ -1,9 +1,9 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-01 11:18:53
+ * @Date         : 2022-09-05 20:20:18
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-15 14:06:36
- * @FilePath     : /vueSource/sourceDemo.js
+ * @LastEditTime : 2022-09-09 13:59:37
+ * @FilePath     : /Vuesource/响应式数据基本实现/sourceDemo.js
  */
 // proxy 拦截实现数据变化的监听
 
@@ -12,7 +12,7 @@
 */
 const bucket = new Set()
 
-const data = { text: 'hello world',test:true }
+const data = { text: 'hello world',ok:true }
 
 const obj = new Proxy(data, {
   // 拦截操读取操作
@@ -29,7 +29,6 @@ const obj = new Proxy(data, {
     target[key] = newVal
     // 将副作用函数effect从桶里面取出来执行
     bucket.forEach(fn => fn())
-
     // return true 代表设置操作成功
     return true
   }
@@ -44,4 +43,4 @@ effect()
 
 setTimeout(() => { 
   obj.text = 'hello vue3'
-}, 1000)
+}, 3000)

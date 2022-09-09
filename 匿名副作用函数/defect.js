@@ -1,16 +1,16 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-01 13:33:35
+ * @Date         : 2022-09-05 20:37:20
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-01 13:33:35
- * @FilePath     : /vueSource/sourceDemo-Reactive-key-name.js
+ * @LastEditTime : 2022-09-05 20:37:20
+ * @FilePath     : /Vuesource/匿名副作用函数/sourceDemo-anonymous copy.js
  */
 
 // 可读取匿名函数 -- 副作用函数
 let activeEffect // 用一个全局变量存储被注册的副作用函数
 
 const bucket = new Set()
-const data = { text: 'hello world', test: true }
+const data = { text: 'hello world', ok: false }
 const obj = new Proxy(data, {
   // 拦截操读取操作
   get(target, key) {
@@ -44,15 +44,12 @@ function effect(fn) {
 // ------执行
 effect(() => {
   // 一个匿名的副作用函数
-  console.log('effect run') // 会执行两次, 因为设置的时候会再次触发set操作，里面调用了副作用函数
-  document.body.innerText = obj.text
-})
+  console.log('run effect');
+  document.body.innerText = obj.text;
+});
 
-setTimeout(() => {
-  obj.text = 'hello vue3'
-}, 1000)
 
 // --- 缺陷代码引发
-//  setTimeout(() => {
-//   obj.nonExist = 'hello vue3'
-// }, 1000)
+ setTimeout(() => {
+  obj.notExist = 'hello vue3'
+}, 1000)

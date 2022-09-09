@@ -1,29 +1,24 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-02 16:11:33
+ * @Date         : 2022-09-06 14:05:24
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-02 16:11:33
- * @FilePath     : /vueSource/sourceDemo-nest copy.js
+ * @LastEditTime : 2022-09-08 20:42:14
+ * @FilePath     : /Vuesource/cleanUp/defect.js
  */
 
-// 无限循环递归
+// 分支切换 解除依赖关系 
 /*
-  总结: 在trigger的时候添加守卫条件，当trigger执行的副作用函数与当前副作用函数相同则不触发执行。 同时，先读取属性值，再自身++操作，会连续发生两次get操作，而因为栈的原因，第二次get操作的activeEffect值为undefined所以会直接返回get函数。所以trigger里面的activeEffect会与当前activeEffect不相同。
+  总结: 如果没有触发get操作，就没有办法触发副作用函数。修改ok的值后，会因为执行副作用函数导致读取ok的值触发get方法，因为get方法中会将对应的副作用函数与对应的key值进行绑定。而每次执行副作用函数的时候会把该绑定删除，若前值为false导致后值无法读取的时候，到trigger函数则无法读取绑定，从而导致无法触发副作用函数
 */
-debugger
 let activeEffect; // 用一个全局变量存储被注册的副作用函数
 const bucket = new WeakMap(); // 存储副作用函数的桶
-
-// 副作用函数栈
-const effectStack = [];
 // const data = { text: 'hello world', ok: true };
-const data = { foo: 1, bar: false };
+const data = {foo: true, bar: false};
 let temp1, temp2
 
 const obj = new Proxy(data, {
   // 拦截操读取操作
   get (target, key) {
-    console.log('run get', key);
     // 将副作用函数, activeEffect添加到存储副作用函数的桶中
     track(target, key);
     // 返回属性值
@@ -32,7 +27,6 @@ const obj = new Proxy(data, {
   // 拦截操写操作
   set(target, key, newVal) {
     // 设置属性值
-    console.log('run set', key, newVal);
     target[key] = newVal;
     // 将副作用函数从桶里面取出来并执行
     trigger(target, key);
@@ -41,7 +35,6 @@ const obj = new Proxy(data, {
 
 // get 中调用 追踪数据变化
 function track (target, key) {
-  console.log('run track', key);
   // 没有activeEffect时，直接返回属性值
   if (!activeEffect) return target[key];
 
@@ -69,22 +62,13 @@ function track (target, key) {
 
 // 在set中调用 触发变化
 function trigger (target, key) {
-  console.log('run trigger', key);
   // 根据target从桶中取出depsMap, key-->effectFn集合
   const depsMap = bucket.get(target);
   if (!depsMap) return;
 
   const effects = depsMap.get(key);
 
-  const effectsToRun = new Set()
-
-  effects && effects.forEach(effectFn => { 
-    // 如果trigger触发执行的副作用函数与当前执行的副作用函数相同，则不触发执行
-    if (effectFn !== activeEffect) { 
-      effectsToRun.add(effectFn);
-    }
-  })
-
+  const effectsToRun = new Set(effects)
   effectsToRun.forEach(effectFn => {
     // 执行副作用函数
     effectFn();
@@ -95,7 +79,6 @@ function trigger (target, key) {
 }
 
 function cleanup (effectFn) {
-  console.log('run cleanup');
   // 遍历 effectFn.deps数组
   for (let i = 0; i < effectFn.deps.length; i++) { 
     // deps 是依赖集合
@@ -115,15 +98,8 @@ function effect (fn) {
     cleanup(effectFn)
     // 当effectFn执行时, 将其设置为当前激活的副作用函数
     activeEffect = effectFn;
-
-    // 在调用副作用函数之前将当前副作用函数压入栈中
-    effectStack.push(effectFn)
     // 执行副作用函数
     fn();
-
-    // 在当副作用函数执行完毕后，将当前副作用函数弹出，并把activeEffect还原为之前的值
-    effectStack.pop()
-    activeEffect = effectStack[effectStack.length - 1]
   }
   // activeEffect.deps 存储所有与该副作用函数相关联的依赖集合
   effectFn.deps = [] // 对应到depsMap中的集合
@@ -132,40 +108,20 @@ function effect (fn) {
 }
 
 // ------------执行
+// 缺陷触发
 effect(function effectFn1 () { 
   console.log('effectFn1 执行')
-  document.body.innerText = obj.foo
-  // effect(function effectFn2 () { 
-  //   console.log('effectFn2 执行')
-  //   // effect2 读取obj.bar属性
-  //   temp2 = obj.bar;
-  // })
+
+  effect(function effectFn2 () { 
+    console.log('effectFn2 执行')
+    // effect2 读取obj.bar属性
+    temp2 = obj.bar;
+  })
   // effectFn1 读取obj.foo属性
+  temp1 = obj.foo;
 })
 
 setTimeout(() => { 
-  obj.foo = obj.foo + 1
+  obj.foo = false
 },1000)
-
-// setTimeout(() => { 
-//   obj.foo = false
-// },1000)
-
-// effect(() => {
-//   // 一个匿名的副作用函数
-//   console.log('run effect');
-//   document.body.innerText = obj.ok ? obj.text : 'not';
-// });
-
-// setTimeout(() => {
-//   console.log('run 修改 ok和text');
-//   obj.ok = true;
-//   obj.text = 'wowwww';
-// }, 1000);
-
-// setTimeout(() => {
-//   console.log('run 修改 ok和text 2');
-//   obj.ok = true;
-//   obj.text = 'wowwww222';
-// }, 3000);
 

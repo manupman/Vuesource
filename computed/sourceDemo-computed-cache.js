@@ -1,55 +1,26 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-02 16:11:33
+ * @Date         : 2022-08-04 16:15:07
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-02 16:11:33
- * @FilePath     : /vueSource/sourceDemo-nest copy.js
+ * @LastEditTime : 2022-08-04 16:15:07
+ * @FilePath     : /vueSource/sourceDemo-schedule copy.js
  */
 
-// 调度执行
+// lazy computed计算属性
 /*
-  总结: 将队列放置在微任务队列中，可以使得代码在最后执行，通过Set集合去重让副作用函数只执行一次,但是值已经经过多次修改。实现了多次连续修改但是只更新一次的结果。
+  总结: 有lazy属性的时候可以不立即执行副作用函数，通过getter函数返回副作用函数的计算值(computed)。再设置value和dirty做数据缓存以及数据更新标记(在调度器中更新dirty的值为true因为调度器是在数据变化时执行)。但是发生嵌套时:在副作用函数中读取computed属性值后，再更新计算值中的其中一个元素，想要再触发该副作用函数的话，需要手动调用trigger,那么在读取value的时候就需要手动进行track追踪。
 */
-debugger;
 let activeEffect; // 用一个全局变量存储被注册的副作用函数
 const bucket = new WeakMap(); // 存储副作用函数的桶
 
 // 副作用函数栈
 const effectStack = [];
 // const data = { text: 'hello world', ok: true };
-const data = { foo: 1, bar: false };
-let temp1, temp2;
-
-// 定义一个任务队列
-const jobQueue = new Set();
-// 使用Promise.resolve()创建一个promise实例，用作将一个任务添加到微任务队列中
-const p = Promise.resolve();
-
-// 一个标志代表是否正在刷新队列
-let isRefreshing = false;
-function flushJob() {
-  // 如果队列正在刷新，直接返回
-  if (isRefreshing) return;
-  // 设置队列正在刷新
-  isRefreshing = true;
-  // 循环微任务队列，刷新JobQueue队列
-  p.then(() => {
-    console.log('run p');
-    jobQueue.forEach(job => {
-      debugger
-      console.log('run job',job);
-      job()
-    });
-  }).finally(() => {
-    // 结束后重置状态
-    isFlushing = false;
-  });
-}
+const data = { foo: 1, bar: 2 };
 
 const obj = new Proxy(data, {
   // 拦截操读取操作
   get(target, key) {
-    console.log('run get', key);
     // 将副作用函数, activeEffect添加到存储副作用函数的桶中
     track(target, key);
     // 返回属性值
@@ -58,7 +29,6 @@ const obj = new Proxy(data, {
   // 拦截操写操作
   set(target, key, newVal) {
     // 设置属性值
-    console.log('run set', key, newVal);
     target[key] = newVal;
     // 将副作用函数从桶里面取出来并执行
     trigger(target, key);
@@ -67,7 +37,6 @@ const obj = new Proxy(data, {
 
 // get 中调用 追踪数据变化
 function track(target, key) {
-  console.log('run track', key);
   // 没有activeEffect时，直接返回属性值
   if (!activeEffect) return target[key];
 
@@ -95,7 +64,6 @@ function track(target, key) {
 
 // 在set中调用 触发变化
 function trigger(target, key) {
-  console.log('run trigger', key);
   // 根据target从桶中取出depsMap, key-->effectFn集合
   const depsMap = bucket.get(target);
   if (!depsMap) return;
@@ -129,7 +97,6 @@ function trigger(target, key) {
 }
 
 function cleanup(effectFn) {
-  console.log('run cleanup');
   // 遍历 effectFn.deps数组
   for (let i = 0; i < effectFn.deps.length; i++) {
     // deps 是依赖集合
@@ -152,55 +119,65 @@ function effect(fn, options = {}) {
 
     // 在调用副作用函数之前将当前副作用函数压入栈中
     effectStack.push(effectFn);
-    // 执行副作用函数
-    fn();
+    // 执行副作用函数, 将fn的执行结果放入res中
+    const res = fn();
 
     // 在当副作用函数执行完毕后，将当前副作用函数弹出，并把activeEffect还原为之前的值
     effectStack.pop();
     activeEffect = effectStack[effectStack.length - 1];
+    return res
   };
   // 将options 挂载到effectFn上
   effectFn.options = options;
 
   // activeEffect.deps 存储所有与该副作用函数相关联的依赖集合
   effectFn.deps = []; // 对应到depsMap中的集合
-  // 执行副作用函数
-  effectFn();
+  // 只有lazy为false才执行副作用函数
+  if (!options.lazy) {
+    effectFn(); 
+  }
+  // 副作用函数作为返回值返回
+  return effectFn;
+}
+
+// computed函数
+function computed (getter) { 
+  // value 用来缓存上次计算的值
+  let value
+  // dirty标志 用来标识是否需要重新计算值，为true意味着脏数据需要重新计算
+  let dirty = true
+
+  // 把getter作为副作用函数，创建一个lazy的effect
+  const effectFn = effect(getter, {
+    lazy: true,
+    scheduler () {
+      dirty = true
+    }
+  });
+  
+  const obj = {
+    // 读取value时才会执行effectFn
+    get value () { 
+      // 只有脏数据时才需要计算值，并将值存放到缓存value中
+      if (dirty) { 
+        value = effectFn()
+      // 将dirty标志设置为false，下一次访问直接使用缓存到value中的值
+        dirty = false
+      }
+      return value
+    }
+  }
+
+  return obj
 }
 
 // ------------执行
 
-// 控制调度时机
-/*
-effect(function effectFn1() {
-  console.log('effectFn1 执行',obj.foo)
-},
-  // options
-  {
-    scheduler: function (effectFn) {
-      setTimeout(effectFn)
-    }
-  }
-)
+const sumRes = computed(() => {
+  console.log('触发计算')
+  return obj.foo + obj.bar
+});
 
-obj.foo++
-console.log('结束了')
-*/
-
-// 控制执行的次数
-effect(
-  () => {
-    console.log('effectFn1 执行', obj.foo, obj.bar);
-  },
-  {
-    scheduler(effectFn) {
-      jobQueue.add(effectFn);
-      // 调用 flushJob刷新队列
-      flushJob();
-    }
-  }
-);
-
-obj.foo++;
-obj.bar = true
-obj.foo++;
+console.log(sumRes.value) // 3
+console.log(sumRes.value)
+console.log(sumRes.value)

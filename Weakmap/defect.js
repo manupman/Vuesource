@@ -1,9 +1,9 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-01 14:09:53
+ * @Date         : 2022-09-06 11:21:10
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-01 14:09:53
- * @FilePath     : /vueSource/sourceDemo-simple-reaction.js
+ * @LastEditTime : 2022-09-06 11:21:10
+ * @FilePath     : /Vuesource/Weakmap/sourceDemo-simple-reaction copy.js
  */
 
 // key - value 找对应的副作用函数集合
@@ -37,7 +37,6 @@ function effect(fn) {
   // 执行副作用函数
   fn();
 }
-
 
 // get 中调用 追踪数据变化
 function track(target, key) {
@@ -76,63 +75,16 @@ function trigger(target, key) {
   return true;
 }
 
-// get(target, key) {
-//   // 没有activeEffect时，直接返回属性值
-//   if (!activeEffect) return target[key];
-
-//   // 根据target从桶中取出depsMap --- Map类型: target-->depsMap key: 对象, value: map类型 映射每个key对应的副作用函数集合
-//   let depsMap = bucket.get(target);
-//   if (!depsMap) {
-//     // 若对应target不存在depsMap，则创建一个新的Map，并与target关联
-//     bucket.set(target, (depsMap = new Map()));
-//   }
-
-//   // 再根据target的key从depsMap中取出deps --- Set类型: key-->effectFn key: 属性名, value: 副作用函数集合
-//   let deps = depsMap.get(key);
-
-//   if (!deps) {
-//     // 若对应key不存在deps，则创建一个新的Set，并与key关联
-//     depsMap.set(key, (deps = new Set()));
-//   }
-//   // 最后将副作用函数effect添加到存储副作用函数的桶中
-//   deps.add(activeEffect);
-
-//   // 返回属性值
-//   return target[key];
-// }
-
-// set(target, key, newVal) {
-//   // 设置属性值
-//   target[key] = newVal;
-//   // 根据target从桶中取出depsMap, key-->effectFn集合
-//   const depsMap = bucket.get(target);
-//   if (!depsMap) return;
-
-//   const effects = depsMap.get(key);
-
-//   // 执行副作用函数
-//   effects && effects.forEach((fn) => fn());
-//   // return true 代表设置操作成功
-//   return true;
-// }
 
 // -----执行
 effect(() => {
   // 一个匿名的副作用函数
   console.log('effect run'); // 会执行两次, 因为设置的时候会再次触发set操作，里面调用了副作用函数
-  document.body.innerText = obj.text;
+  document.body.innerText = obj.ok?obj.text:'not';
 });
 
-setTimeout(() => {
-  obj.text = 'hello vue3';
-}, 1000);
-
-// effect(function effectFn () { 
-//   document.body.innerText = obj.ok ? obj.text : 'not';
-// })
-
-obj.ok = false;
+obj.ok = false
 
 setTimeout(() => {
-  obj.text = "测试一下";
-}, 1000);
+  obj.text = "修改值";
+}, 2000);

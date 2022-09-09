@@ -1,25 +1,27 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-01 14:09:53
+ * @Date         : 2022-09-06 16:49:54
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-01 14:09:53
- * @FilePath     : /vueSource/sourceDemo-simple-reaction.js
+ * @LastEditTime : 2022-09-08 20:46:36
+ * @FilePath     : /Vuesource/内嵌effect/defect.js
  */
 
-// 分支切换 解除依赖关系 
+// 副作用函数嵌套
 /*
-  总结: 如果没有触发get操作，就没有办法触发副作用函数。修改ok的值后，会因为执行副作用函数导致读取ok的值触发get方法，因为get方法中会将对应的副作用函数与对应的key值进行绑定。而每次执行副作用函数的时候会把该绑定删除，若前值为false导致后值无法读取的时候，到trigger函数则无法读取绑定，从而导致无法触发副作用函数
+  总结: 添加副作用函数栈，可以解决activeEffect当前副作用函数被覆盖的问题，实现嵌套的副作用函数渲染
 */
 let activeEffect; // 用一个全局变量存储被注册的副作用函数
 const bucket = new WeakMap(); // 存储副作用函数的桶
+
+// 副作用函数栈
+const effectStack = [];
 // const data = { text: 'hello world', ok: true };
-const data = {ok: true, foo: true, bar: false,text: 'hello world' };
+const data = { foo: 1, bar: false, test:1};
 let temp1, temp2
-debugger
+
 const obj = new Proxy(data, {
   // 拦截操读取操作
   get (target, key) {
-    console.log('run get', key);
     // 将副作用函数, activeEffect添加到存储副作用函数的桶中
     track(target, key);
     // 返回属性值
@@ -28,7 +30,6 @@ const obj = new Proxy(data, {
   // 拦截操写操作
   set(target, key, newVal) {
     // 设置属性值
-    console.log('run set', key, newVal);
     target[key] = newVal;
     // 将副作用函数从桶里面取出来并执行
     trigger(target, key);
@@ -37,7 +38,6 @@ const obj = new Proxy(data, {
 
 // get 中调用 追踪数据变化
 function track (target, key) {
-  console.log('run track', key);
   // 没有activeEffect时，直接返回属性值
   if (!activeEffect) return target[key];
 
@@ -65,7 +65,6 @@ function track (target, key) {
 
 // 在set中调用 触发变化
 function trigger (target, key) {
-  console.log('run trigger', key);
   // 根据target从桶中取出depsMap, key-->effectFn集合
   const depsMap = bucket.get(target);
   if (!depsMap) return;
@@ -83,7 +82,6 @@ function trigger (target, key) {
 }
 
 function cleanup (effectFn) {
-  console.log('run cleanup');
   // 遍历 effectFn.deps数组
   for (let i = 0; i < effectFn.deps.length; i++) { 
     // deps 是依赖集合
@@ -103,8 +101,15 @@ function effect (fn) {
     cleanup(effectFn)
     // 当effectFn执行时, 将其设置为当前激活的副作用函数
     activeEffect = effectFn;
+
+    // 在调用副作用函数之前将当前副作用函数压入栈中
+    effectStack.push(effectFn)
     // 执行副作用函数
     fn();
+
+    // 在当副作用函数执行完毕后，将当前副作用函数弹出，并把activeEffect还原为之前的值
+    effectStack.pop()
+    activeEffect = effectStack[effectStack.length - 1]
   }
   // activeEffect.deps 存储所有与该副作用函数相关联的依赖集合
   effectFn.deps = [] // 对应到depsMap中的集合
@@ -113,36 +118,6 @@ function effect (fn) {
 }
 
 // ------------执行
-// effect(() => {
-//   // 一个匿名的副作用函数
-//   console.log('run effect');
-//   document.body.innerText = obj.ok ? obj.text : 'not';
-// });
-
-// setTimeout(() => {
-//   console.log('run 修改 ok和text');
-//   obj.ok = false;
-// }, 1000);
-
-// setTimeout(() => {
-//   console.log('run 修改 ok和text 2');
-//   obj.text = 'wowwww222';
-// }, 3000);
-
-// 缺陷触发
-effect(function effectFn1 () { 
-  console.log('effectFn1 执行')
-
-  effect(function effectFn2 () { 
-    console.log('effectFn2 执行')
-    // effect2 读取obj.bar属性
-    temp2 = obj.bar;
-  })
-  // effectFn1 读取obj.foo属性
-  temp1 = obj.foo;
-})
-
-setTimeout(() => { 
-  obj.foo = false
-},1000)
+// 缺陷代码
+effect(() => obj.foo++)
 

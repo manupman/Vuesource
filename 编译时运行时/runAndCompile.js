@@ -1,9 +1,9 @@
 /**
  * @Author       : 黄键恒
- * @Date         : 2022-08-12 11:09:50
+ * @Date         : 2022-09-04 11:40:27
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-12 11:09:50
- * @FilePath     : /vueSource/runAndCompile.js
+ * @LastEditTime : 2022-09-04 11:40:28
+ * @FilePath     : /Vuesource/编译时运行时/runAndCompile.js
  */
 const obj = {
   tag: 'div',
@@ -17,6 +17,7 @@ const obj = {
 
 function Render (obj, root) { 
   const ele = document.createElement(obj.tag)
+  
   if (typeof obj.children === 'string') {
     const text = document.createTextNode(obj.children)
     ele.appendChild(text)

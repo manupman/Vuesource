@@ -2,52 +2,20 @@
  * @Author       : 黄键恒
  * @Date         : 2022-08-10 11:29:41
  * @LastEditors  : 黄键恒
- * @LastEditTime : 2022-08-11 13:53:32
- * @FilePath     : /vueSource/sourceDemo-watch-immediate.js
+ * @LastEditTime : 2022-09-09 10:34:07
+ * @FilePath     : /Vuesource/watch/sourceDemo-watch-immediate.js
  */
 
-// lazy computed计算属性
-/*
-  总结: 通过利用scheduler，可以控制回调执行的时机，借此实现vue3中的post
-*/
-debugger;
 let activeEffect; // 用一个全局变量存储被注册的副作用函数
 const bucket = new WeakMap(); // 存储副作用函数的桶
 
 // 副作用函数栈
 const effectStack = [];
-// const data = { text: 'hello world', ok: true };
 const data = { foo: 1, bar: 2 };
-let temp1, temp2;
-
-// 定义一个任务队列
-const jobQueue = new Set();
-// 使用Promise.resolve()创建一个promise实例，用作将一个任务添加到微任务队列中
-const p = Promise.resolve();
-
-// 一个标志代表是否正在刷新队列
-let isRefreshing = false;
-function flushJob() {
-  // 如果队列正在刷新，直接返回
-  if (isRefreshing) return;
-  // 设置队列正在刷新
-  isRefreshing = true;
-  // 循环微任务队列，刷新JobQueue队列
-  p.then(() => {
-    jobQueue.forEach((job) => {
-      console.log('run job', job);
-      job();
-    });
-  }).finally(() => {
-    // 结束后重置状态
-    isFlushing = false;
-  });
-}
 
 const obj = new Proxy(data, {
   // 拦截操读取操作
   get(target, key) {
-    console.log('run get', key);
     // 将副作用函数, activeEffect添加到存储副作用函数的桶中
     track(target, key);
     // 返回属性值
@@ -56,7 +24,6 @@ const obj = new Proxy(data, {
   // 拦截操写操作
   set(target, key, newVal) {
     // 设置属性值
-    console.log('run set', key, newVal);
     target[key] = newVal;
     // 将副作用函数从桶里面取出来并执行
     trigger(target, key);
@@ -65,7 +32,6 @@ const obj = new Proxy(data, {
 
 // get 中调用 追踪数据变化
 function track(target, key) {
-  console.log('run track', key);
   // 没有activeEffect时，直接返回属性值
   if (!activeEffect) return target[key];
 
@@ -93,7 +59,6 @@ function track(target, key) {
 
 // 在set中调用 触发变化
 function trigger(target, key) {
-  console.log('run trigger', key);
   // 根据target从桶中取出depsMap, key-->effectFn集合
   const depsMap = bucket.get(target);
   if (!depsMap) return;
@@ -127,7 +92,6 @@ function trigger(target, key) {
 }
 
 function cleanup(effectFn) {
-  console.log('run cleanup');
   // 遍历 effectFn.deps数组
   for (let i = 0; i < effectFn.deps.length; i++) {
     // deps 是依赖集合
@@ -171,17 +135,6 @@ function effect(fn, options = {}) {
   return effectFn;
 }
 
-// watch函数
-// function watch (source, cb) {
-//   effect(
-//     // 触发读取操作建立联系
-//     () => traverse(source), {
-//       scheduler () {
-//       // 当数据变化时，执行回调函数
-//     cb()
-//   }
-// });
-// }
 function watch (source, cb, options = {}) {
   // 定义getter
   let getter;
@@ -212,15 +165,8 @@ function watch (source, cb, options = {}) {
     () => getter(),
     {
       lazy: true,
-      scheduler: () => { 
-        // 在调度函数中判断flush是否为'post',如果是,将其放到微任务队列中执行
-        if (options.flush === 'post') {
-          const p = Promise.resolve();
-          p.then(job);
-        } else { 
-          job()
-        }
-      }
+      // 使用job函数作为调度器函数
+      scheduler: job
     }
   );
 
@@ -230,7 +176,8 @@ function watch (source, cb, options = {}) {
   }
   else {
     // 手动调用副作用函数，取得旧值
-    oldValue = effectFn();}
+    oldValue = effectFn();
+  }
 }
 
 // 遍历函数
